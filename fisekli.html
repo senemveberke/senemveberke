@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Düğün Fotoğraf Yükleme (Çoklu)</title>
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    .gold-gradient { background: linear-gradient(135deg, #f5e6c8 0%, #fff7e6 50%, #f5e6c8 100%); }
+    .dashed-gold { border: 2px dashed #d4af37; }
+    .ring-gold:focus { outline: none; box-shadow: 0 0 0 4px rgba(212,175,55,.25); }
+    .fade-in { animation: fade .18s ease-out; }
+    @keyframes fade { from {opacity: 0; transform: translateY(2px)} to {opacity: 1; transform: translateY(0)} }
+    /* Fireworks canvas üstte, tıklamayı engellemez */
+    #fireworksCanvas { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 50; }
+  </style>
+</head>
+<body class="min-h-screen bg-[#fffaf8] text-slate-800">
+  <!-- Havai fişek kanvası -->
+  <canvas id="fireworksCanvas"></canvas>
+
+  <!-- Üst başlık -->
+  <header class="gold-gradient shadow-sm">
+    <div class="mx-auto max-w-5xl px-6 py-8 text-center">
+      <div class="mx-auto mb-3 flex items-center justify-center">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="#d4af37" stroke-width="1.5">
+          <circle cx="8" cy="16" r="5"></circle>
+          <circle cx="16" cy="16" r="5"></circle>
+          <path d="M12 8l2-3 2 3"></path>
+        </svg>
+      </div>
+      <h1 class="text-2xl md:text-3xl font-semibold tracking-wide text-[#7c3f58]">Senem ve Berke</h1>
+      <p class="mt-2 text-sm md:text-base text-[#7c3f58]/80">Düğünümüze hoş geldiniz...</p>
+      <p class="mt-2 text-sm md:text-base text-[#7c3f58]/80">Hayat, en çok birlikteyken güzel</p>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-5xl px-6 py-8">
+    <div class="rounded-2xl bg-white shadow-lg p-6 md:p-8">
+      <!-- Sürükle-bırak alanı -->
+      <label for="fileInput" id="dropzone"
+             class="dashed-gold ring-gold flex cursor-pointer flex-col items-center justify-center rounded-2xl bg-[#fff7f5] p-8 text-center transition hover:bg-[#ffecea]">
+        <div class="pointer-events-none select-none">
+          <div class="mx-auto mb-3 flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-10 w-10" viewBox="0 0 24 24" fill="none" stroke="#7c3f58" stroke-width="1.5">
+              <path d="M12 16V4m0 0l-4 4m4-4l4 4" />
+              <rect x="3" y="14" width="18" height="6" rx="2" />
+            </svg>
+          </div>
+          <p class="text-sm md:text-base text-[#7c3f58]">
+            <span class="font-medium">Tıkla</span> ya da fotoğraflarını buraya <span class="font-medium">sürükle-bırak</span>
+          </p>
+          <p class="mt-1 text-xs text-[#7c3f58]/70">Sadece görseller: JPG, PNG, JPEG, WEBP. Maks 15 MB / dosya.</p>
+        </div>
+        <input id="fileInput" name="fileInput" type="file" accept="image/*" class="sr-only" multiple />
+      </label>
+
+      <!-- Ön izleme / Liste -->
+      <div id="previewWrap" class="mt-6 hidden">
+        <div class="flex items-center justify-between">
+          <h2 class="text-base font-semibold text-[#7c3f58]">Seçilen Fotoğraflar</h2>
+          <div class="flex items-center gap-2">
+            <span id="selectionCount" class="text-xs text-slate-600">0 dosya</span>
+            <button id="removeAllBtn" class="text-xs rounded-full border px-3 py-1 hover:bg-rose-50 border-rose-200 text-rose-600">Tümünü Kaldır</button>
+          </div>
+        </div>
+
+        <div id="fileGrid" class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+      </div>
+
+      <!-- Butonlar -->
+      <div class="mt-6 flex flex-col gap-3 sm:flex-row">
+        <button id="uploadBtn"
+                class="inline-flex items-center justify-center rounded-xl bg-[#7c3f58] px-5 py-3 text-sm font-medium text-white shadow-md transition hover:opacity-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled>
+          Gönder
+        </button>
+        <button id="resetBtn"
+                class="inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-5 py-3 text-sm font-medium text-[#7c3f58] hover:bg-rose-50">
+          Sıfırla
+        </button>
+      </div>
+
+      <!-- Durum alanı -->
+      <div id="status" class="mt-4 text-sm"></div>
+
+      <!-- Toplam İlerleme -->
+      <div id="progressWrap" class="mt-4 hidden">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-xs text-slate-600">Toplam ilerleme</span>
+          <span id="progressPct" class="text-xs text-slate-600">0%</span>
+        </div>
+        <div class="w-full h-2 rounded-full bg-rose-100 overflow-hidden">
+          <div id="progressBar" class="h-2 w-0 bg-[#7c3f58] transition-[width] duration-150"></div>
+        </div>
+        <button id="abortBtn"
+                class="mt-3 inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-3 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                disabled>
+          İptal Et
+        </button>
+      </div>
+    </div>
+
+    <p class="mt-6 text-center text-xs text-slate-500">
+      Yükleme ile ilgili sorun yaşarsanız dosya türü ve boyutunu kontrol edin.
+    </p>
+  </main>
+
+  <script>
+    // ==== Fireworks (basit canvas motoru) ====
+    (function(){
+      const canvas = document.getElementById('fireworksCanvas');
+      const ctx = canvas.getContext('2d');
+      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      let dpr = Math.max(1, window.devicePixelRatio || 1);
+      let W = 0, H = 0, rafId = null, running = false, lastTime = 0;
+      const gravity = 0.08;
+      const rockets = [];
+      const particles = [];
+
+      function resize(){
+        W = canvas.clientWidth;
+        H = canvas.clientHeight;
+        canvas.width = Math.floor(W * dpr);
+        canvas.height = Math.floor(H * dpr);
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+      window.addEventListener('resize', resize, { passive: true });
+      resize();
+
+      function rand(min, max){ return Math.random() * (max - min) + min; }
+      function color(){
+        // düğün paleti + canlı tonlar
+        const palette = ['#d4af37','#ff7aa2','#ffd6e0','#ffa8a8','#a78bfa','#60a5fa','#34d399'];
+        return palette[(Math.random()*palette.length)|0];
+      }
+
+      function launchRocket() {
+        rockets.push({
+          x: rand(W*0.1, W*0.9),
+          y: H + 10,
+          vx: rand(-0.8, 0.8),
+          vy: rand(-9.5, -12.5),
+          color: color(),
+          exploded: false,
+          peak: rand(H*0.25, H*0.55)
+        });
+      }
+
+      function explode(rocket) {
+        const count = 60 + (Math.random()*40|0);
+        for (let i=0;i<count;i++){
+          const angle = Math.random()*Math.PI*2;
+          const speed = rand(1.5, 4.2);
+          particles.push({
+            x: rocket.x, y: rocket.y,
+            vx: Math.cos(angle)*speed,
+            vy: Math.sin(angle)*speed,
+            life: rand(40, 70),
+            alpha: 1,
+            color: rocket.color,
+            size: rand(1.2, 2.2),
+            flicker: Math.random()<0.5
+          });
+        }
+      }
+
+      function step(t){
+        rafId = requestAnimationFrame(step);
+        const dt = Math.min(32, t - lastTime || 16);
+        lastTime = t;
+
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.fillStyle = 'rgba(0,0,0,0.15)';
+        ctx.fillRect(0,0,W,H);
+        ctx.globalCompositeOperation = 'lighter';
+
+        // update rockets
+        for (let i=rockets.length-1;i>=0;i--){
+          const r = rockets[i];
+          r.x += r.vx;
+          r.y += r.vy;
+          r.vy += gravity * 0.5;
+
+          // çiz
+          ctx.beginPath();
+          ctx.moveTo(r.x, r.y);
+          ctx.lineTo(r.x - r.vx*2, r.y - r.vy*2);
+          ctx.strokeStyle = r.color;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+
+          if (!r.exploded && r.y <= r.peak){
+            r.exploded = true;
+            explode(r);
+            rockets.splice(i,1);
+          } else if (r.y < -20){
+            rockets.splice(i,1);
+          }
+        }
+
+        // update particles
+        for (let i=particles.length-1;i>=0;i--){
+          const p = particles[i];
+          p.x += p.vx;
+          p.y += p.vy;
+          p.vy += gravity;
+          p.life -= 1;
+          p.alpha = Math.max(0, p.life/70);
+          const size = p.size * (p.flicker ? (0.75 + Math.random()*0.5) : 1);
+
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, size, 0, Math.PI*2);
+          ctx.fillStyle = hexToRgba(p.color, p.alpha);
+          ctx.fill();
+
+          if (p.life <= 0) particles.splice(i,1);
+        }
+
+        // otomatik durdurma (kaynak kullanımını koru)
+        if (running && rockets.length===0 && particles.length===0){
+          stop();
+        }
+      }
+
+      function hexToRgba(hex, a){
+        // #RRGGBB
+        const v = hex.replace('#','');
+        const r = parseInt(v.slice(0,2),16);
+        const g = parseInt(v.slice(2,4),16);
+        const b = parseInt(v.slice(4,6),16);
+        return `rgba(${r},${g},${b},${a})`;
+      }
+
+      let launchTimer = null;
+      function start(durationMs=6000, burst=3){
+        if (prefersReduced) return; // saygı göster
+        if (running) return;
+        running = true;
+        // periyodik roket
+        const freq = 350; // ms
+        let elapsed = 0;
+        launchTimer = setInterval(()=>{
+          const n = 1 + (Math.random()<0.5 ? 1 : 0);
+          for (let i=0;i<n;i++) launchRocket();
+          elapsed += freq;
+          if (elapsed >= durationMs){
+            clearInterval(launchTimer);
+            launchTimer = null;
+          }
+        }, freq);
+        // başlangıçta küçük bir patlama
+        for (let i=0;i<burst;i++) launchRocket();
+        if (!rafId) rafId = requestAnimationFrame(step);
+      }
+
+      function burstOnce(count=4){
+        if (prefersReduced) return;
+        for (let i=0;i<count;i++) launchRocket();
+        if (!running){
+          running = true;
+          if (!rafId) rafId = requestAnimationFrame(step);
+          setTimeout(()=>{ if (running) stop(); }, 1800);
+        }
+      }
+
+      function stop(){
+        running = false;
+        if (launchTimer){ clearInterval(launchTimer); launchTimer=null; }
+        // animasyon döngüsünü ancak tüm parçacıklar bitince kapattık
+        if (rafId){ cancelAnimationFrame(rafId); rafId=null; }
+        // Canvas'ı temizle
+        ctx.clearRect(0,0,W,H);
+      }
+
+      // global erişim
+      window.__weddingFW = { start, stop, burstOnce };
+    })();
+
+    // ==== Uploader ====
+    // Elementler
+    const fileInput = document.getElementById('fileInput');
+    const dropzone = document.getElementById('dropzone');
+    const previewWrap   = document.getElementById('previewWrap');
+    const fileGrid      = document.getElementById('fileGrid');
+    const selectionCount = document.getElementById('selectionCount');
+    const uploadBtn = document.getElementById('uploadBtn');
+    const resetBtn  = document.getElementById('resetBtn');
+    const removeAllBtn = document.getElementById('removeAllBtn');
+    const statusEl  = document.getElementById('status');
+    const progressWrap = document.getElementById('progressWrap');
+    const progressBar  = document.getElementById('progressBar');
+    const progressPct  = document.getElementById('progressPct');
+    const abortBtn     = document.getElementById('abortBtn');
+
+    // Ayarlar
+    const MAX_MB = 15;
+    const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'];
+    const ENDPOINT = "https://safaktr.app.n8n.cloud/webhook/upload-image";
+    const USE_ORIGINAL_FILENAME = true;
+
+    // Durum
+    let files = [];              // { id, file, url, valid, error }
+    let currentXhr = null;
+    let abortRequested = false;
+
+    // Yardımcılar
+    const uid = () => Math.random().toString(36).slice(2, 10);
+    function formatBytes(bytes) { const u=['B','KB','MB','GB']; let i=0; while(bytes>=1024&&i<u.length-1){bytes/=1024;i++;} return `${bytes.toFixed(2)} ${u[i]}`; }
+    function setStatus(msg, type='info'){
+      const colors={info:'text-slate-600',success:'text-emerald-700',error:'text-rose-700',loading:'text-amber-700'};
+      statusEl.className=`mt-4 text-sm ${colors[type]||colors.info}`; statusEl.textContent=msg;
+    }
+    function clearStatus(){ setStatus(''); }
+    function validateFile(file){
+      if(!file) return 'Dosya alınamadı.';
+      if(!ACCEPTED_TYPES.includes(file.type)) return 'Lütfen görsel seçin (JPG, JPEG, PNG, WEBP).';
+      if(file.size/(1024*1024)>MAX_MB) return `Dosya çok büyük. Maksimum ${MAX_MB} MB.`;
+      return null;
+    }
+    function updateSelectionUI(){
+      const count=files.length; selectionCount.textContent=count+' dosya';
+      previewWrap.classList.toggle('hidden', count===0);
+      uploadBtn.disabled = count===0 || files.some(f=>!f.valid);
+    }
+    function createFileCard(fobj){
+      const card=document.createElement('div'); card.className="fade-in rounded-xl border border-rose-100 bg-white p-3 flex flex-col"; card.dataset.id=fobj.id;
+      const imgWrap=document.createElement('div'); imgWrap.className="relative aspect-[4/3] overflow-hidden rounded-lg bg-[#fffaf8] border border-rose-50";
+      const img=document.createElement('img'); img.src=fobj.url; img.alt="Ön izleme"; img.className="h-full w-full object-contain"; imgWrap.appendChild(img);
+      const info=document.createElement('div'); info.className="mt-3 text-xs text-slate-700";
+      info.innerHTML=`
+        <div class="flex items-center justify-between gap-2">
+          <span class="truncate"><span class="font-medium text-[#7c3f58]">Ad:</span> ${fobj.file.name}</span>
+          <button class="removeOne text-rose-600 border border-rose-200 hover:bg-rose-50 rounded-full px-2 py-0.5">Sil</button>
+        </div>
+        <div class="mt-1"><span class="font-medium text-[#7c3f58]">Boyut:</span> ${formatBytes(fobj.file.size)}</div>
+        <div><span class="font-medium text-[#7c3f58]">Tür:</span> ${fobj.file.type || 'Bilinmiyor'}</div>
+        <div class="mt-2 h-1.5 w-full rounded-full bg-rose-100 overflow-hidden">
+          <div class="fileProgress h-1.5 w-0 bg-[#7c3f58]"></div>
+        </div>
+        <div class="fileStatus mt-1 text-[11px] text-slate-500"></div>`;
+      if(!fobj.valid){ const st=info.querySelector('.fileStatus'); st.textContent=fobj.error||'Geçersiz dosya'; st.classList.add('text-rose-600'); }
+      card.appendChild(imgWrap); card.appendChild(info); return card;
+    }
+    function renderGrid(){ fileGrid.innerHTML=""; files.forEach(f=>fileGrid.appendChild(createFileCard(f))); updateSelectionUI(); }
+    function addFiles(list){
+      const arr=Array.from(list||[]); if(!arr.length) return;
+      const newOnes=arr.map(file=>{ const err=validateFile(file); const id=uid(); const url=URL.createObjectURL(file);
+        return {id,file,url,valid:!err,error:err||null,uploaded:false}; });
+      files=files.concat(newOnes); renderGrid();
+    }
+    function removeById(id){ const idx=files.findIndex(f=>f.id===id); if(idx>=0){ URL.revokeObjectURL(files[idx].url); files.splice(idx,1); renderGrid(); } }
+    function removeAll(){ files.forEach(f=>URL.revokeObjectURL(f.url)); files=[]; renderGrid(); }
+
+    // İlerleme
+    function showProgressTotal(pct){ const v=Math.max(0,Math.min(100,pct|0)); progressBar.style.width=v+'%'; progressPct.textContent=v+'%'; }
+    function startProgress(){ showProgressTotal(0); progressWrap.classList.remove('hidden'); uploadBtn.disabled=true; abortBtn.disabled=false; resetBtn.disabled=true; removeAllBtn.disabled=true; }
+    function endProgress(){ progressWrap.classList.add('hidden'); showProgressTotal(0); uploadBtn.disabled=files.length===0||files.some(f=>!f.valid); abortBtn.disabled=true; resetBtn.disabled=false; removeAllBtn.disabled=false; }
+    function setFileProgress(id,pct){ const card=fileGrid.querySelector(`[data-id="${id}"]`); if(!card) return; const bar=card.querySelector('.fileProgress'); if(bar) bar.style.width=Math.max(0,Math.min(100,pct|0))+'%'; }
+    function setFileStatus(id,text,isError=false){ const card=fileGrid.querySelector(`[data-id="${id}"]`); if(!card) return; const st=card.querySelector('.fileStatus'); if(st){ st.textContent=text||''; st.classList.toggle('text-rose-600',!!isError); st.classList.toggle('text-slate-500',!isError); } }
+    function safeFilename(name,fallback="photo.jpg"){ if(!name||typeof name!=='string') return fallback; return name.replace(/[\u0000-\u001f<>:"/\\|?*\x7F]+/g,'_').slice(0,200)||fallback; }
+
+    function uploadOneWithProgress(fobj){
+      return new Promise((resolve,reject)=>{
+        const formdata=new FormData();
+        const filename = USE_ORIGINAL_FILENAME ? safeFilename(fobj.file.name,"photo.jpg") : "enhanced_image_for_poster_2.png";
+        formdata.append("data", fobj.file, filename);
+        const xhr=new XMLHttpRequest(); currentXhr=xhr;
+        xhr.open("POST", ENDPOINT, true);
+        xhr.upload.onprogress=(e)=>{ if(e.lengthComputable){ setFileProgress(fobj.id, (e.loaded/e.total)*100 ); } };
+        xhr.onload=()=>{ currentXhr=null; if(xhr.status>=200&&xhr.status<300){ resolve(xhr.responseText);} else { reject(new Error(`Sunucu hata: ${xhr.status} ${xhr.statusText} — ${xhr.responseText||''}`)); } };
+        xhr.onerror=()=>{ currentXhr=null; reject(new Error("Ağ hatası oluştu.")); };
+        xhr.onabort =()=>{ currentXhr=null; reject(new Error("Yükleme iptal edildi.")); };
+        xhr.send(formdata);
+      });
+    }
+
+    async function uploadAllSequential(){
+      const validFiles=files.filter(f=>f.valid); if(!validFiles.length) return;
+      abortRequested=false; startProgress(); setStatus(`Yükleniyor… (${validFiles.length} dosya)`, 'loading');
+
+      let succeeded=0, failed=0;
+      for(let i=0;i<validFiles.length;i++){
+        const f=validFiles[i]; if(abortRequested) throw new Error("İptal edildi.");
+        setFileStatus(f.id, "Yükleniyor…"); setFileProgress(f.id, 0);
+        try{ const resp=await uploadOneWithProgress(f); setFileStatus(f.id, "Tamamlandı ✓"); setFileProgress(f.id,100); f.uploaded=true; succeeded++; }
+        catch(err){ setFileStatus(f.id, (err&&err.message)?err.message:"Hata", true); failed++; }
+        showProgressTotal(((i+1)/validFiles.length)*100);
+      }
+      endProgress();
+      if(failed===0){ setStatus(`Tümü yüklendi. (${succeeded}/${validFiles.length})`, 'success'); }
+      else if(succeeded===0){ setStatus(`Hiçbiri yüklenemedi. (${failed}/${validFiles.length})`, 'error'); }
+      else{ setStatus(`Bazıları yüklendi: ${succeeded} başarılı, ${failed} hatalı.`, 'loading'); }
+      // Başarılı bir tamamlanma varsa küçük bir ekstra patlama
+      if (succeeded>0) { window.__weddingFW?.burstOnce(5); }
+    }
+
+    // Olaylar: Dropzone
+    ;['dragenter','dragover'].forEach(evt=>{
+      dropzone.addEventListener(evt, e=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.add('bg-[#ffecea]'); });
+    });
+    ;['dragleave','drop'].forEach(evt=>{
+      dropzone.addEventListener(evt, e=>{ e.preventDefault(); e.stopPropagation(); dropzone.classList.remove('bg-[#ffecea]'); });
+    });
+    dropzone.addEventListener('drop', e=> addFiles(e.dataTransfer.files));
+    fileInput.addEventListener('change', e=> addFiles(e.target.files));
+
+    // Silme
+    fileGrid.addEventListener('click', (e)=>{
+      if(e.target && e.target.classList.contains('removeOne')){
+        const card=e.target.closest('[data-id]'); if(card) removeById(card.dataset.id);
+      }
+    });
+
+    // Tümünü kaldır & Sıfırla
+    removeAllBtn.addEventListener('click', e=>{ e.preventDefault(); removeAll(); clearStatus(); });
+    resetBtn.addEventListener('click',  e=>{ e.preventDefault(); removeAll(); clearStatus(); });
+
+    // Gönder
+    uploadBtn.addEventListener('click', async (e)=>{
+      e.preventDefault();
+      clearStatus();
+      if(!files.length) return setStatus('Önce dosya seçin.', 'error');
+      if(files.some(f=>!f.valid)) return setStatus('Geçersiz dosyalar var, lütfen kaldırın.', 'error');
+
+      // TIKLAMA ANINDA HAVAİ FİŞEKLER BAŞLASIN
+      window.__weddingFW?.start(6000, 4);
+
+      try{ await uploadAllSequential(); }
+      catch(err){ endProgress(); setStatus(err?.message||'Yükleme hata verdi.', 'error'); }
+    });
+
+    // İptal
+    abortBtn.addEventListener('click', e=>{
+      e.preventDefault(); abortRequested=true; if(currentXhr) currentXhr.abort();
+    });
+  </script>
+</body>
+</html>
