@@ -51,7 +51,7 @@
           <p class="text-sm md:text-base text-[#7c3f58]">
             <span class="font-medium">Tıkla</span> ya da dosyalarını buraya <span class="font-medium">sürükle-bırak</span>
           </p>
-          <p class="mt-1 text-xs text-[#7c3f58]/70">Galerinizden fotoğraf (JPG, PNG, WEBP) veya video (MP4, MOV, WEBM) seçin. Ses için aşağıdaki kayıt aracını ya da sürükle-bırak yöntemini kullanabilirsiniz. Maks 15 MB / dosya.</p>
+          <p class="mt-1 text-xs text-[#7c3f58]/70">Galerinizden fotoğraf (JPG, PNG, WEBP) veya video (MP4, MOV, WEBM) seçin. Ses için aşağıdaki kayıt aracını ya da sürükle-bırak yöntemini kullanabilirsiniz.</p>
         </div>
         <input id="fileInput" name="fileInput" type="file" accept="image/*,video/*" class="sr-only" multiple />
       </label>
@@ -319,7 +319,6 @@
     const abortBtn     = document.getElementById('abortBtn');
 
     // Ayarlar
-    const MAX_MB = 15;
     const RECORD_MAX_MS = 60000;
     const ACCEPTED_TYPE_PREFIXES = ['image/', 'video/', 'audio/'];
     const ACCEPTED_EXTENSION_GROUPS = {
@@ -478,7 +477,6 @@
     function validateFile(file){
       if(!file) return 'Dosya alınamadı.';
       if(!isAcceptedFileType(file)) return `Lütfen ${ACCEPTED_TYPE_LABEL} yükleyin.`;
-      if(file.size/(1024*1024)>MAX_MB) return `Dosya çok büyük. Maksimum ${MAX_MB} MB.`;
       return null;
     }
     function updateSelectionUI(){
