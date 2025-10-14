@@ -585,9 +585,18 @@
         const xhr=new XMLHttpRequest(); currentXhr=xhr;
         xhr.open("POST", ENDPOINT, true);
         xhr.upload.onprogress=(e)=>{ if(e.lengthComputable){ setFileProgress(fobj.id, (e.loaded/e.total)*100 ); } };
-        xhr.onload=()=>{ currentXhr=null; if(xhr.status>=200&&xhr.status<300){ resolve(xhr.responseText);} else { reject(new Error(`Sunucu hata: ${xhr.status} ${xhr.statusText} — ${xhr.responseText||''}`)); } };
-        xhr.onerror=()=>{ currentXhr=null; reject(new Error("Ağ hatası oluştu.")); };
-        xhr.onabort =()=>{ currentXhr=null; reject(new Error("Yükleme iptal edildi.")); };
+        xhr.onload=()=>{
+          console.log('[uploader] xhr.onload', { status: xhr.status, statusText: xhr.statusText, readyState: xhr.readyState });
+          currentXhr=null; if(xhr.status>=200&&xhr.status<300){ resolve(xhr.responseText);} else { reject(new Error(`Sunucu hata: ${xhr.status} ${xhr.statusText} — ${xhr.responseText||''}`)); }
+        };
+        xhr.onerror=()=>{
+          console.error('[uploader] xhr.onerror', { status: xhr.status, statusText: xhr.statusText, readyState: xhr.readyState, response: xhr.responseText });
+          currentXhr=null; reject(new Error("Ağ hatası oluştu."));
+        };
+        xhr.onabort =()=>{
+          console.warn('[uploader] xhr.onabort');
+          currentXhr=null; reject(new Error("Yükleme iptal edildi."));
+        };
         xhr.send(formdata);
       });
     }
