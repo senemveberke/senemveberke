@@ -13,7 +13,13 @@
     .fade-in { animation: fade .18s ease-out; }
     @keyframes fade { from {opacity: 0; transform: translateY(2px)} to {opacity: 1; transform: translateY(0)} }
     /* Fireworks canvas üstte, tıklamayı engellemez */
-    #fireworksCanvas { position: fixed; inset: 0; width: 100vw; height: 100vh; pointer-events: none; z-index: 50; }
+    #fireworksCanvas {
+      position: fixed; inset: 0;
+      width: 100vw;
+      height: 100vh;   /* eski tarayıcılar için */
+      height: 100dvh;  /* dinamik viewport - iOS/modern */
+      pointer-events: none; z-index: 50;
+    }
   </style>
 </head>
 <body class="min-h-screen bg-[#fffaf8] text-slate-800">
@@ -128,12 +134,18 @@
   </main>
 
   <script>
-    // ==== Fireworks (basit canvas motoru) ====
+    // ==== Fireworks (geliştirilmiş canvas motoru) ====
     (function(){
       const canvas = document.getElementById('fireworksCanvas');
       const ctx = canvas.getContext('2d');
-      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-      let dpr = Math.max(1, window.devicePixelRatio || 1);
+
+      // PRM (prefers-reduced-motion) tercihine saygı; ama etkileşimde override edebiliriz.
+      const mqReduced = window.matchMedia('(prefers-reduced-motion: reduce)');
+      let reduceMotion = mqReduced.matches;
+      mqReduced.addEventListener?.('change', (e) => { reduceMotion = e.matches; });
+
+      // DPR aşırı yüksekse mobil performans için sınırla
+      let dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
       let W = 0, H = 0, rafId = null, running = false, lastTime = 0;
       const gravity = 0.08;
       const rockets = [];
@@ -254,11 +266,13 @@
       }
 
       let launchTimer = null;
-      function start(durationMs=6000, burst=3){
-        if (prefersReduced) return; // saygı göster
+
+      // opts.force === true ise PRM açık olsa bile kullanıcı etkileşimiyle tetiklenen animasyona izin ver
+      function start(durationMs=6000, burst=3, opts={ force:false }){
+        if (!opts.force && reduceMotion) return;
         if (running) return;
         running = true;
-        // periyodik roket
+
         const freq = 350; // ms
         let elapsed = 0;
         launchTimer = setInterval(()=>{
@@ -275,8 +289,8 @@
         if (!rafId) rafId = requestAnimationFrame(step);
       }
 
-      function burstOnce(count=4){
-        if (prefersReduced) return;
+      function burstOnce(count=4, opts={ force:false }){
+        if (!opts.force && reduceMotion) return;
         for (let i=0;i<count;i++) launchRocket();
         if (!running){
           running = true;
@@ -288,9 +302,7 @@
       function stop(){
         running = false;
         if (launchTimer){ clearInterval(launchTimer); launchTimer=null; }
-        // animasyon döngüsünü ancak tüm parçacıklar bitince kapattık
         if (rafId){ cancelAnimationFrame(rafId); rafId=null; }
-        // Canvas'ı temizle
         ctx.clearRect(0,0,W,H);
       }
 
@@ -617,8 +629,8 @@
       if(failed===0){ setStatus(`Tümü yüklendi. (${succeeded}/${validFiles.length})`, 'success'); }
       else if(succeeded===0){ setStatus(`Hiçbiri yüklenemedi. (${failed}/${validFiles.length})`, 'error'); }
       else{ setStatus(`Bazıları yüklendi: ${succeeded} başarılı, ${failed} hatalı.`, 'loading'); }
-      // Başarılı bir tamamlanma varsa küçük bir ekstra patlama
-      if (succeeded>0) { window.__weddingFW?.burstOnce(5); }
+      // Başarılı bir tamamlanma varsa kısa bir ekstra patlama (etkileşim sonrası zorla)
+      if (succeeded>0) { window.__weddingFW?.burstOnce(5, { force: true }); }
     }
 
     // Olaylar: Dropzone
@@ -663,8 +675,8 @@
       if(!files.length) return setStatus('Önce dosya seçin.', 'error');
       if(files.some(f=>!f.valid)) return setStatus('Geçersiz dosyalar var, lütfen kaldırın.', 'error');
 
-      // TIKLAMA ANINDA HAVAİ FİŞEKLER BAŞLASIN
-      window.__weddingFW?.start(6000, 4);
+      // TIKLAMA ANINDA HAVAİ FİŞEKLER BAŞLASIN (kullanıcı etkileşimi → force)
+      window.__weddingFW?.start(6000, 4, { force: true });
 
       try{ await uploadAllSequential(); }
       catch(err){ endProgress(); setStatus(err?.message||'Yükleme hata verdi.', 'error'); }
