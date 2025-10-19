@@ -47,10 +47,11 @@
             <span class="font-medium">Tıkla</span> ya da dosyalarını buraya <span class="font-medium">sürükle-bırak</span>
           </p>
           <p class="mt-1 text-xs text-[#7c3f58]/70">
-            Fotoğraf (JPG, PNG, WEBP), video (MP4, MOV, WEBM) seçebilir; ses için aşağıdan hızlı kayıt yapabilir ya da ses dosyasını da sürükleyip bırakabilirsiniz.
+            Fotoğraf (JPG, PNG, WEBP) ve video (MP4, MOV, WEBM) seçin. Ses için aşağıdan hızlı kayıt yapabilir ya da ses dosyasını sürükleyip bırakabilirsiniz.
           </p>
         </div>
-        <input id="fileInput" name="fileInput" type="file" accept="image/*,video/*,audio/*" class="sr-only" multiple />
+        <!-- DİKKAT: Burada audio/* KALDIRILDI → mobilde galeri/ortam seçici açılır -->
+        <input id="fileInput" name="fileInput" type="file" accept="image/*,video/*" class="sr-only" multiple />
       </label>
 
       <!-- Hızlı Ses Kaydı -->
@@ -113,7 +114,7 @@
           <div id="progressBar" class="h-2 w-0 bg-[#7c3f58] transition-[width] duration-150"></div>
         </div>
         <button id="abortBtn"
-                class="mt-3 inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-3 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                class="mt-3 inline-flex items-center justify-center rounded-xl border border-rose-200 bg-white px-3 py-1 text-xs font-medium text-rose-600 hover:bg-rose-50 disabled:opacity-50"
                 disabled>
           İptal Et
         </button>
@@ -519,7 +520,7 @@
         st.classList.toggle('text-slate-500', !isError);
       }
     }
-    function safeFilename(name, fallback = "photo.jpg") {
+    function safeFilename(name, fallback = "file.bin") {
       if (!name || typeof name !== 'string') return fallback;
       return name.replace(/[\u0000-\u001f<>:"/\\|?*\x7F]+/g, '_').slice(0, 200) || fallback;
     }
